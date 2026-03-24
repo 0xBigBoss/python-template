@@ -1,0 +1,48 @@
+name: Update Dependencies
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Monday 6am UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Update Python dependencies
+        run: |
+          uv lock --upgrade
+          uv sync
+
+      - name: Update Nix flake inputs
+        run: nix flake update
+
+      - name: Verify
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+          uv run ty check
+          uv run pytest
+
+      - name: Create PR
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: "chore: weekly dependency updates"
+          title: "chore: weekly dependency updates"
+          branch: chore/update-deps
+          body: |
+            Automated weekly dependency updates:
+            - `uv lock --upgrade`
+            - `nix flake update`
+          delete-branch: true
